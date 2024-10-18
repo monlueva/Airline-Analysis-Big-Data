@@ -1,0 +1,295 @@
+ssh avilla224@129.146.148.35
+scp /users/adrian/ada_zip/2009.csv.zip avilla224@129.146.148.35:/home/avilla224/ 
+scp /users/adrian/ada_zip/2010.csv.zip avilla224@129.146.148.35:/home/avilla224/ 
+scp /users/adrian/ada_zip/2011.csv.zip avilla224@129.146.148.35:/home/avilla224/ 
+scp /users/adrian/ada_zip/2012.csv.zip avilla224@129.146.148.35:/home/avilla224/ 
+scp /users/adrian/ada_zip/2013.csv.zip avilla224@129.146.148.35:/home/avilla224/ 
+scp /users/adrian/ada_zip/2014.csv.zip avilla224@129.146.148.35:/home/avilla224/ 
+scp /users/adrian/ada_zip/2015.csv.zip avilla224@129.146.148.35:/home/avilla224/ 
+scp /users/adrian/ada_zip/2016.csv.zip avilla224@129.146.148.35:/home/avilla224/ 
+scp /users/adrian/ada_zip/2017.csv.zip avilla224@129.146.148.35:/home/avilla224/ 
+scp /users/adrian/ada_zip/2018.csv.zip avilla224@129.146.148.35:/home/avilla224/ 
+scp /users/adrian/ada_zip/2019.csv.zip avilla224@129.146.148.35:/home/avilla224/ 
+scp /users/adrian/ada_zip/2020.csv.zip avilla224@129.146.148.35:/home/avilla224/ 
+
+unzip 2009.csv.zip
+unzip 2010.csv.zip
+unzip 2011.csv.zip
+unzip 2012.csv.zip
+unzip 2013.csv.zip
+unzip 2014.csv.zip
+unzip 2015.csv.zip
+unzip 2016.csv.zip
+unzip 2017.csv.zip
+unzip 2018.csv.zip
+unzip 2019.csv.zip
+unzip 2020.csv.zip
+
+hdfs dfs -mkdir airline_delay_analysis
+
+hdfs dfs -put 2009.csv airline_delay_analysis
+hdfs dfs -put 2010.csv airline_delay_analysis
+hdfs dfs -put 2011.csv airline_delay_analysis
+hdfs dfs -put 2012.csv airline_delay_analysis
+hdfs dfs -put 2013.csv airline_delay_analysis
+hdfs dfs -put 2014.csv airline_delay_analysis
+hdfs dfs -put 2015.csv airline_delay_analysis
+hdfs dfs -put 2016.csv airline_delay_analysis
+hdfs dfs -put 2017.csv airline_delay_analysis
+hdfs dfs -put 2018.csv airline_delay_analysis
+hdfs dfs -put 2019.csv airline_delay_analysis
+hdfs dfs -put 2020.csv airline_delay_analysis
+
+hdfs dfs -rm -r airline_delay_analysis/tables/*
+
+-- Initial Table
+
+DROP TABLE IF EXISTS airline_departures;
+
+CREATE EXTERNAL TABLE IF NOT EXISTS airline_departures (fl_date date, op_carrier STRING, op_carrier_fl_num INTEGER, origin STRING, dest STRING, crs_dep_time STRING, dep_time STRING, dep_delay STRING, taxi_out INTEGER, wheels_off STRING, wheels_on STRING, taxi_in INTEGER, crs_arr_time STRING, arr_time STRING, arr_delay STRING, cancelled INTEGER, cancellation_code STRING, diverted INTEGER, crs_elapsed_time INTEGER, actual_elapsed_time INTEGER, air_time INTEGER, distance INTEGER, carrier_delay INTEGER, weather_delay INTEGER, nas_delay INTEGER, security_delay INTEGER, late_aircraft_delay INTEGER)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE LOCATION '/user/avilla224/airline_delay_analysis'
+TBLPROPERTIES ('skip.header.line.count'='1');
+
+-- Airline Delays
+
+hdfs dfs -mkdir airline_delay_analysis/tables/carrier_delay
+
+DROP TABLE IF EXISTS airline_delays;
+
+CREATE EXTERNAL TABLE IF NOT EXISTS airline_delays(flight_date date, airline string, flight_number string, destination string, departure_time int, airline_delay int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE LOCATION 'airline_delay_analysis/tables/carrier_delay' ;
+
+INSERT INTO TABLE airline_delays (flight_date, airline, flight_number, destination, departure_time, airline_delay)
+SELECT fl_date, op_carrier, op_carrier_fl_num, dest, dep_time, carrier_delay
+FROM airline_departures
+WHERE carrier_delay IS NOT NULL and carrier_delay > 0; 
+
+-- Weather Delays
+
+hdfs dfs -mkdir airline_delay_analysis/tables/weather_delay
+
+DROP TABLE IF EXISTS weather_delays;
+
+CREATE EXTERNAL TABLE IF NOT EXISTS weather_delays (flight_date date, airline string, flight_number string, destination string, departure_time int, weather_delays int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE LOCATION 'airline_delay_analysis/tables/weather_delay'; 
+
+INSERT INTO TABLE weather_delays (flight_date, airline, flight_number, destination, departure_time, weather_delays)
+SELECT fl_date, op_carrier, op_carrier_fl_num, dest, dep_time, weather_delay
+FROM airline_departures
+WHERE weather_delay IS NOT NULL and weather_delay > 0; 
+
+-- NAS Delay
+
+hdfs dfs -mkdir airline_delay_analysis/tables/
+
+DROP TABLE IF EXISTS nas_delays;
+
+CREATE EXTERNAL TABLE IF NOT EXISTS nas_delays (flight_date date, airline string, flight_number string, destination string, departure_time int, nas_delays int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE LOCATION 'airline_delay_analysis/tables/nas_delay'; 
+
+INSERT INTO TABLE nas_delays (flight_date, airline, flight_number, destination, departure_time, nas_delays)
+SELECT fl_date, op_carrier, op_carrier_fl_num, dest, dep_time, nas_delay
+FROM airline_departures
+WHERE nas_delay IS NOT NULL and nas_delay > 0; 
+
+-- Security Delay
+
+hdfs dfs -mkdir airline_delay_analysis/tables/security_delay
+
+DROP TABLE IF EXISTS security_delays;
+
+CREATE EXTERNAL TABLE IF NOT EXISTS security_delays (flight_date date, airline string, flight_number string, destination string, departure_time int, security_delays int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE LOCATION 'airline_delay_analysis/tables/security_delay'; 
+
+INSERT INTO TABLE security_delays (flight_date, airline, flight_number, destination, departure_time, security_delays)
+SELECT fl_date, op_carrier, op_carrier_fl_num, dest, dep_time, security_delay
+FROM airline_departures
+WHERE security_delay IS NOT NULL and security_delay > 0; 
+
+-- Late Aircraft Delay
+
+hdfs dfs -mkdir airline_delay_analysis/tables/aircraft_delay
+
+DROP TABLE IF EXISTS aircraft_delays;
+
+CREATE EXTERNAL TABLE IF NOT EXISTS aircraft_delays (flight_date date, airline string, flight_number string, destination string, departure_time int, aircraft_delays int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE LOCATION 'airline_delay_analysis/tables/aircraft_delay'; 
+
+INSERT INTO TABLE aircraft_delays (flight_date, airline, flight_number, destination, departure_time, aircraft_delays)
+SELECT fl_date, op_carrier, op_carrier_fl_num, dest, dep_time, late_aircraft_delay
+FROM airline_departures
+WHERE late_aircraft_delay IS NOT NULL and late_aircraft_delay > 0 ; 
+
+-- Flight Patterns in 2018
+
+hdfs dfs -mkdir airline_delay_analysis/tables/flight_patterns
+
+drop table if exists flight_patterns;
+
+CREATE EXTERNAL TABLE IF NOT EXISTS flight_patterns (fl_year string, fl_month string, airline string, origin string, destination string, total_destination int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE LOCATION 'airline_delay_analysis/tables/flight_patterns';
+
+INSERT INTO TABLE flight_patterns
+SELECT year(fl_date), month(fl_date), op_carrier, origin, dest, COUNT(dest)
+FROM airline_departures
+WHERE fl_date between '2018-01-01' AND '2018-12-31'
+GROUP BY year(fl_date), month(fl_date), op_carrier, origin, dest
+ORDER BY year(fl_date) ASC, month(fl_date) ASC, op_carrier, origin, dest;
+
+-- Airport Delays
+
+hdfs dfs -mkdir airline_delay_analysis/tables/airport_delays
+
+CREATE EXTERNAL TABLE IF NOT EXISTS airport_delays (fl_year string, fl_month string, origin string, airline_delays int, weather_delays int, nas_delays int, security_delays int, aircraft_delays int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE LOCATION 'airline_delay_analysis/tables/airport_delays';
+
+INSERT INTO TABLE airport_delays (flight_date, origin, airline_delays, weather_delays, nas_delays, security_delays, aircraft_delays)
+SELECT year(fl_date), month(fl_date), origin, COUNT(carrier_delay), COUNT(weather_delay), COUNT(nas_delay), COUNT(security_delay), COUNT(late_aircraft_delay)
+FROM airline_departures
+WHERE fl_date between '2009-01-01' to '2018-12-31'
+GROUP BY year(fl_date), month(fl_date), origin;
+
+-- Total Airline Delays by Year, Month, Airline
+
+hdfs dfs -mkdir airline_delay_analysis/tables/airline_total
+
+drop table if exists airline_total_delays;
+
+create external table if not exists airline_total_delays (fl_year string, fl_month string, airline string, total_carrier int)
+row format delimited fields terminated by ','
+stored as textfile location 'airline_delay_analysis/tables/airline_total';
+
+insert into table airline_total_delays
+select year(fl_date), month(fl_date), op_carrier, count(carrier_delay)
+from airline_departures
+where fl_date between '2009-01-01' and '2018-12-31'and (carrier_delay is not null and carrier_delay > 0)
+GROUP by year(fl_date), month(fl_date), op_carrier 
+order by year(fl_date) ASC, month(fl_date) ASC, op_carrier DESC;
+
+-- Total Weather Delays by year, Month, Airline
+
+hdfs dfs -mkdir airline_delay_analysis/tables/weather_total
+
+drop table if exists weather_total_delays;
+
+create external table if not exists weather_total_delays (fl_year string, fl_month string, airline string, total_weather int)
+row format delimited fields terminated by ','
+stored as textfile location 'airline_delay_analysis/tables/weather_total';
+
+insert into table weather_total_delays
+select year(fl_date), month(fl_date), op_carrier, count(weather_delay)
+from airline_departures
+where fl_date between '2009-01-01' and '2018-12-31'and (weather_delay is not null and weather_delay > 0)
+GROUP by year(fl_date), month(fl_date), op_carrier 
+order by year(fl_date) ASC, month(fl_date) ASC, op_carrier DESC;
+
+-- Total NAS Delays by Year, Month, Airline
+
+hdfs dfs -mkdir airline_delay_analysis/tables/nas_total
+
+drop table if exists nas_total_delays;
+
+create external table if not exists nas_total_delays (fl_year string, fl_month string, airline string, total_nas int)
+row format delimited fields terminated by ','
+stored as textfile location 'airline_delay_analysis/tables/nas_total';
+
+insert into table nas_total_delays
+select year(fl_date), month(fl_date), op_carrier, count(nas_delay)
+from airline_departures
+where fl_date between '2009-01-01' and '2018-12-31'and (nas_delay is not null and nas_delay > 0)
+GROUP by year(fl_date), month(fl_date), op_carrier 
+order by year(fl_date) ASC, month(fl_date) ASC, op_carrier DESC;
+
+-- Total Security Delays by Year, Month, Airline
+
+hdfs dfs -mkdir airline_delay_analysis/tables/security_total
+
+drop table if exists security_total_delays;
+
+create external table if not exists security_total_delays (fl_year string, fl_month string, airline string, total_security int)
+row format delimited fields terminated by ','
+stored as textfile location 'airline_delay_analysis/tables/security_total';
+
+insert into table security_total_delays
+select year(fl_date), month(fl_date), op_carrier, count(security_delay)
+from airline_departures
+where fl_date between '2009-01-01' and '2018-12-31'and (security_delay is not null and security_delay > 0)
+GROUP by year(fl_date), month(fl_date), op_carrier 
+order by year(fl_date) ASC, month(fl_date) ASC, op_carrier DESC;
+
+-- Total Late Aircraft Delays by Year, Month, Airline
+
+hdfs dfs -mkdir airline_delay_analysis/tables/late_aircraft_total
+
+drop table if exists late_aircraft_total_delays;
+
+create external table if not exists late_aircraft_total_delays (fl_year string, fl_month string, airline string, total_late_aircraft int)
+row format delimited fields terminated by ','
+stored as textfile location 'airline_delay_analysis/tables/late_aircraft_total';
+
+insert into table late_aircraft_total_delays
+select year(fl_date), month(fl_date), op_carrier, count(late_aircraft_delay)
+from airline_departures
+where fl_date between '2009-01-01' and '2018-12-31'and (late_aircraft_delay is not null and late_aircraft_delay > 0)
+GROUP by year(fl_date), month(fl_date), op_carrier 
+order by year(fl_date) ASC, month(fl_date) ASC, op_carrier DESC;
+
+-- Sum of Minutes by Year, Airline Delay Type
+
+hdfs dfs -mkdir airline_delay_analysis/tables/total_minutes
+
+drop table if exists total_minutes;
+
+create external table if not exists total_minutes (year string, airline string, airline_total int, weather_total int, nas_total int, security_total int, late_aircraft_total int)
+row format delimited fields terminated by ','
+stored as textfile location 'airline_delay_analysis/tables/total_minutes';
+
+insert into table total_minutes
+select year(fl_date), op_carrier, sum(carrier_delay), sum(weather_delay), sum(nas_delay), sum(security_delay), sum(late_aircraft_delay)
+from airline_departures
+where fl_date between '2009-01-01' and '2018-12-31'
+group by year(fl_date), op_carrier
+order by year(fl_date) ASC, op_carrier;
+
+-- Total Cancellations per Airline
+
+hdfs dfs -mkdir airline_delay_analysis/tables/total_cancelled_airline
+
+drop table if exists total_cancelled_airline;
+
+create external table if not exists total_cancelled_airline (fl_year string, airline string, total_cancellations int)
+row format delimited fields terminated by ','
+stored as textfile location 'airline_delay_analysis/tables/total_cancelled_airline';
+
+insert into table total_cancelled_airline
+select year(fl_date), op_carrier, count(cancelled)
+from airline_departures
+where cancelled like '%1%' and fl_date between '2009-01-01' and '2018-12-31'
+group by year(fl_date), op_carrier
+order by year(fl_date) ASC, op_carrier;
+
+
+-- Total Cancellations by Airport
+
+hdfs dfs -mkdir airline_delay_analysis/tables/total_cancelled_airport
+
+drop table if exists total_cancelled_airport;
+
+create external table if not exists total_cancelled_airport (fl_year string, origin string, total_cancellations int)
+row format delimited fields terminated by ','
+stored as textfile location 'airline_delay_analysis/tables/total_cancelled_airport';
+
+insert into table total_cancelled_airport
+select year(fl_date), origin, count(cancelled)
+from airline_departures
+where cancelled like '%1%' and fl_date between '2009-01-01' and '2018-12-31'
+group by year(fl_date), origin
+order by year(fl_date) ASC, origin ;
